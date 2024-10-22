@@ -2,7 +2,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from .terrain import generate_reference_and_limits
+from .control import Controller
 
 class Submarine:
     def __init__(self):
@@ -47,7 +49,7 @@ class Trajectory:
         plt.plot(self.position[:, 0], self.position[:, 1])
         plt.show()
 
-    def plot_completed_mission(self, mission: Mission):
+    def plot_completed_mission(self, mission: Mission, controller: Controller):
         x_values = np.arange(len(mission.reference))
         min_depth = np.min(mission.cave_depth)
         max_height = np.max(mission.cave_height)
@@ -60,6 +62,11 @@ class Trajectory:
         plt.plot(self.position[:, 0], self.position[:, 1], label='Trajectory')
         plt.plot(mission.reference, 'r', linestyle='--', label='Reference')
         plt.legend(loc='upper right')
+
+        # Add text annotations for Kp, Kd, and Ki
+        textstr = f'Kp={controller.Kp}, Kd={controller.Kd}, Ki={controller.Ki}'
+        plt.gcf().text(0.15, 0.85, textstr, fontsize=12, bbox=dict(facecolor='white'))
+
         plt.show()
 
 @dataclass
@@ -76,11 +83,15 @@ class Mission:
     @classmethod
     def from_csv(cls, file_name: str):
         # You are required to implement this method
-        pass
+        data = pd.read_csv(file_name)
+        reference = data['reference'].to_numpy()
+        cave_height = data['cave_height'].to_numpy()
+        cave_depth = data['cave_depth'].to_numpy()
+        return cls(reference, cave_height, cave_depth)
 
 
 class ClosedLoop:
-    def __init__(self, plant: Submarine, controller):
+    def __init__(self, plant: Submarine, controller: Controller):
         self.plant = plant
         self.controller = controller
 
@@ -98,6 +109,7 @@ class ClosedLoop:
             positions[t] = self.plant.get_position()
             observation_t = self.plant.get_depth()
             # Call your controller here
+            actions[t] = self.controller.get_action(mission.reference[t], observation_t)
             self.plant.transition(actions[t], disturbances[t])
 
         return Trajectory(positions)
